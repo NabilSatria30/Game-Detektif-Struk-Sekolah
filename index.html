@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detektif Struk Sekolah</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="game-shell">
+    <section id="startScreen" class="screen screen-active">
+      <div class="title-panel">
+        <p class="eyebrow">Audit OSIS</p>
+        <h1>Detektif Struk Sekolah</h1>
+        <p class="intro">
+          Cocokkan struk, daftar belanja, dan barang diterima. Temukan harga janggal,
+          barang fiktif, atau jumlah yang dilebihkan sebelum waktu habis.
+        </p>
+        <button id="startButton" class="primary-button">Mulai Investigasi</button>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen">
+      <header class="hud">
+        <div>
+          <span class="hud-label">Acara</span>
+          <strong id="caseTitle">-</strong>
+        </div>
+        <div>
+          <span class="hud-label">Skor</span>
+          <strong id="scoreText">0</strong>
+        </div>
+        <div>
+          <span class="hud-label">Waktu</span>
+          <strong id="timerText">60</strong>
+        </div>
+      </header>
+
+      <div class="workbench">
+        <section class="document-panel">
+          <div class="panel-heading">
+            <h2>Daftar Disetujui</h2>
+            <span class="stamp safe">OSIS</span>
+          </div>
+          <div id="approvedList" class="item-list"></div>
+        </section>
+
+        <section class="document-panel receipt-panel">
+          <div class="panel-heading">
+            <h2>Struk Kasir</h2>
+            <span class="stamp">CEK</span>
+          </div>
+          <div id="receiptList" class="item-list receipt-list"></div>
+        </section>
+
+        <section class="document-panel">
+          <div class="panel-heading">
+            <h2>Barang Diterima</h2>
+            <span class="stamp received">GUDANG</span>
+          </div>
+          <div id="receivedList" class="item-list"></div>
+        </section>
+      </div>
+
+      <aside class="audit-desk">
+        <div>
+          <h2>Jenis Temuan</h2>
+          <p id="selectionText">Pilih item di struk, lalu pilih temuan.</p>
+        </div>
+        <div class="finding-buttons" aria-label="Jenis temuan audit">
+          <button class="finding-button" data-finding="price">Harga Selisih</button>
+          <button class="finding-button" data-finding="fake">Barang Fiktif</button>
+          <button class="finding-button" data-finding="quantity">Jumlah Dilebihkan</button>
+          <button class="finding-button" data-finding="missing">Tidak Diterima</button>
+        </div>
+        <div id="feedback" class="feedback">Temuan benar memberi poin. Salah menandai mengurangi skor.</div>
+      </aside>
+    </section>
+
+    <section id="gameOverScreen" class="screen">
+      <div class="title-panel result-panel">
+        <p class="eyebrow">Laporan Selesai</p>
+        <h1 id="resultTitle">Game Over</h1>
+        <p id="finalScore" class="final-score">Skor: 0</p>
+        <p id="resultSummary" class="intro"></p>
+        <button id="restartButton" class="primary-button">Main Lagi</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
+<script>
+    const cases = [
+  {
+    title: "Pentas Seni Kelas",
+    approved: [
+      { name: "Spidol papan", qty: 4, price: 8000 },
+      { name: "Kertas karton", qty: 10, price: 3000 },
+      { name: "Lakban bening", qty: 2, price: 12000 },
+      { name: "Air mineral dus", qty: 3, price: 22000 }
+    ],
+    receipt: [
+      { id: "marker", name: "Spidol papan", qty: 4, price: 10000, issue: "price" },
+      { id: "carton", name: "Kertas karton", qty: 10, price: 3000, issue: null },
+      { id: "tape", name: "Lakban bening", qty: 3, price: 12000, issue: "quantity" },
+      { id: "snack", name: "Snack panitia", qty: 8, price: 5000, issue: "fake" },
+      { id: "water", name: "Air mineral dus", qty: 3, price: 22000, issue: "missing" }
+    ],
+    received: [
+      { name: "Spidol papan", qty: 4 },
+      { name: "Kertas karton", qty: 10 },
+      { name: "Lakban bening", qty: 2 },
+      { name: "Air mineral dus", qty: 2 }
+    ]
+  },
+  {
+    title: "Bazar Sekolah",
+    approved: [
+      { name: "Gelas kertas", qty: 50, price: 700 },
+      { name: "Sirup botol", qty: 5, price: 18000 },
+      { name: "Es batu kantong", qty: 8, price: 6000 },
+      { name: "Tisu meja", qty: 4, price: 9000 }
+    ],
+    receipt: [
+      { id: "cup", name: "Gelas kertas", qty: 50, price: 700, issue: null },
+      { id: "syrup", name: "Sirup botol", qty: 6, price: 18000, issue: "quantity" },
+      { id: "ice", name: "Es batu kantong", qty: 8, price: 8000, issue: "price" },
+      { id: "balloon", name: "Balon dekorasi", qty: 20, price: 1500, issue: "fake" },
+      { id: "tissue", name: "Tisu meja", qty: 4, price: 9000, issue: "missing" }
+    ],
+    received: [
+      { name: "Gelas kertas", qty: 50 },
+      { name: "Sirup botol", qty: 5 },
+      { name: "Es batu kantong", qty: 8 },
+      { name: "Tisu meja", qty: 3 }
+    ]
+  }
+];
+
+const issueLabels = {
+  price: "Harga Selisih",
+  fake: "Barang Fiktif",
+  quantity: "Jumlah Dilebihkan",
+  missing: "Tidak Diterima"
+};
+
+const startScreen = document.querySelector("#startScreen");
+const gameScreen = document.querySelector("#gameScreen");
+const gameOverScreen = document.querySelector("#gameOverScreen");
+const startButton = document.querySelector("#startButton");
+const restartButton = document.querySelector("#restartButton");
+const caseTitle = document.querySelector("#caseTitle");
+const scoreText = document.querySelector("#scoreText");
+const timerText = document.querySelector("#timerText");
+const approvedList = document.querySelector("#approvedList");
+const receiptList = document.querySelector("#receiptList");
+const receivedList = document.querySelector("#receivedList");
+const selectionText = document.querySelector("#selectionText");
+const feedback = document.querySelector("#feedback");
+const resultTitle = document.querySelector("#resultTitle");
+const finalScore = document.querySelector("#finalScore");
+const resultSummary = document.querySelector("#resultSummary");
+const findingButtons = document.querySelectorAll(".finding-button");
+
+let currentCaseIndex = 0;
+let selectedReceiptId = null;
+let score = 0;
+let timeLeft = 60;
+let timerId = null;
+let solvedIssues = new Set();
+let totalIssues = 0;
+
+function formatRupiah(value) {
+  return `Rp${value.toLocaleString("id-ID")}`;
+}
+
+function setScreen(activeScreen) {
+  [startScreen, gameScreen, gameOverScreen].forEach((screen) => {
+    screen.classList.toggle("screen-active", screen === activeScreen);
+  });
+}
+
+function startGame() {
+  currentCaseIndex = 0;
+  selectedReceiptId = null;
+  score = 0;
+  timeLeft = 60;
+  solvedIssues = new Set();
+  setScreen(gameScreen);
+  loadCase();
+  updateHud();
+  feedback.className = "feedback";
+  feedback.textContent = "Pilih item mencurigakan di struk, lalu pilih jenis temuannya.";
+
+  clearInterval(timerId);
+  timerId = setInterval(gameLoop, 1000);
+}
+
+function gameLoop() {
+  timeLeft -= 1;
+  updateHud();
+
+  if (timeLeft <= 0) {
+    endGame(false);
+  }
+}
+
+function loadCase() {
+  const caseData = cases[currentCaseIndex];
+  caseTitle.textContent = caseData.title;
+  selectedReceiptId = null;
+  solvedIssues.clear();
+  totalIssues = caseData.receipt.filter((item) => item.issue).length;
+  selectionText.textContent = "Pilih item di struk, lalu pilih temuan.";
+  renderList(approvedList, caseData.approved, "approved");
+  renderList(receivedList, caseData.received, "received");
+  renderReceipt(caseData.receipt);
+}
+
+function renderList(container, items, type) {
+  container.innerHTML = "";
+  items.forEach((item) => {
+    const element = document.createElement("article");
+    element.className = "item-card";
+
+    const priceText = type === "approved" ? `<span>${formatRupiah(item.price)} / item</span>` : "";
+    element.innerHTML = `
+      <strong>${item.name}</strong>
+      <div class="item-meta">
+        <span>Jumlah: ${item.qty}</span>
+        ${priceText}
+      </div>
+    `;
+
+    container.appendChild(element);
+  });
+}
+
+function renderReceipt(items) {
+  receiptList.innerHTML = "";
+  items.forEach((item) => {
+    const button = document.createElement("button");
+    button.className = "item-card receipt-item";
+    button.dataset.id = item.id;
+    button.type = "button";
+    button.innerHTML = `
+      <strong>${item.name}</strong>
+      <div class="item-meta">
+        <span>Jumlah: ${item.qty}</span>
+        <span>${formatRupiah(item.price)} / item</span>
+        <span>Total: ${formatRupiah(item.qty * item.price)}</span>
+      </div>
+    `;
+    button.addEventListener("click", () => selectReceiptItem(item.id));
+    receiptList.appendChild(button);
+  });
+}
+
+function selectReceiptItem(itemId) {
+  if (solvedIssues.has(itemId)) {
+    return;
+  }
+
+  selectedReceiptId = itemId;
+  document.querySelectorAll(".receipt-item").forEach((item) => {
+    item.classList.toggle("selected", item.dataset.id === itemId);
+  });
+
+  const selectedItem = getCurrentCase().receipt.find((item) => item.id === itemId);
+  selectionText.textContent = `Dipilih: ${selectedItem.name}`;
+}
+
+function submitFinding(findingType) {
+  if (!selectedReceiptId) {
+    showFeedback("Pilih item di struk terlebih dahulu.", "bad");
+    return;
+  }
+
+  const selectedItem = getCurrentCase().receipt.find((item) => item.id === selectedReceiptId);
+
+  if (solvedIssues.has(selectedReceiptId)) {
+    showFeedback("Item ini sudah masuk laporan audit.", "bad");
+    return;
+  }
+
+  if (selectedItem.issue === findingType) {
+    solvedIssues.add(selectedReceiptId);
+    score += 100;
+    markResolved(selectedReceiptId);
+    showFeedback(`Benar: ${selectedItem.name} bermasalah sebagai ${issueLabels[findingType]}.`, "good");
+  } else {
+    score = Math.max(0, score - 40);
+    showFeedback(`Belum tepat. Cek lagi data untuk ${selectedItem.name}.`, "bad");
+  }
+
+  selectedReceiptId = null;
+  clearReceiptSelection();
+  selectionText.textContent = "Pilih item berikutnya di struk.";
+  updateHud();
+  checkCaseProgress();
+}
+
+function markResolved(itemId) {
+  const element = document.querySelector(`.receipt-item[data-id="${itemId}"]`);
+  if (element) {
+    element.classList.remove("selected");
+    element.classList.add("resolved");
+  }
+}
+
+function clearReceiptSelection() {
+  document.querySelectorAll(".receipt-item").forEach((item) => {
+    item.classList.remove("selected");
+  });
+}
+
+function checkCaseProgress() {
+  if (solvedIssues.size < totalIssues) {
+    return;
+  }
+
+  score += 150;
+  currentCaseIndex += 1;
+
+  if (currentCaseIndex >= cases.length) {
+    endGame(true);
+    return;
+  }
+
+  timeLeft += 20;
+  showFeedback("Kasus selesai. Bonus waktu ditambahkan untuk kasus berikutnya.", "good");
+  setTimeout(loadCase, 900);
+}
+
+function endGame(isWin) {
+  clearInterval(timerId);
+  timerId = null;
+  setScreen(gameOverScreen);
+
+  resultTitle.textContent = isWin ? "Audit Berhasil" : "Waktu Habis";
+  finalScore.textContent = `Skor: ${score}`;
+  resultSummary.textContent = isWin
+    ? "Semua laporan berhasil diperiksa. Anggaran acara sekolah jadi lebih transparan."
+    : "Beberapa temuan belum masuk laporan. Coba lagi dan bandingkan dokumen dengan lebih teliti.";
+}
+
+function showFeedback(message, type) {
+  feedback.className = `feedback ${type}`;
+  feedback.textContent = message;
+}
+
+function updateHud() {
+  scoreText.textContent = score;
+  timerText.textContent = timeLeft;
+}
+
+function getCurrentCase() {
+  return cases[currentCaseIndex];
+}
+
+startButton.addEventListener("click", startGame);
+restartButton.addEventListener("click", startGame);
+findingButtons.forEach((button) => {
+  button.addEventListener("click", () => submitFinding(button.dataset.finding));
+});
+</script>
+
+<style>
+    :root {
+  --ink: #172033;
+  --muted: #5d6b82;
+  --paper: #fffdf7;
+  --paper-dark: #f2efe5;
+  --line: #d8dde8;
+  --blue: #2f6fed;
+  --yellow: #ffd75a;
+  --green: #1f9d68;
+  --red: #d84646;
+  --shadow: 0 18px 50px rgba(23, 32, 51, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  background:
+    linear-gradient(rgba(47, 111, 237, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 111, 237, 0.12) 1px, transparent 1px),
+    #eef3fb;
+  background-size: 36px 36px;
+}
+
+button {
+  font: inherit;
+}
+
+.game-shell {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.screen {
+  display: none;
+  width: min(1180px, 100%);
+}
+
+.screen-active {
+  display: block;
+}
+
+.title-panel {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 40px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--blue);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 16px;
+  font-size: clamp(2.2rem, 8vw, 4.8rem);
+  line-height: 0.95;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+}
+
+.intro {
+  max-width: 58ch;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.primary-button {
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  background: var(--blue);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 0 #1d4faf;
+}
+
+.primary-button:active {
+  transform: translateY(4px);
+  box-shadow: 0 4px 0 #1d4faf;
+}
+
+.hud {
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.hud > div {
+  min-height: 64px;
+  padding: 12px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 8px 0 rgba(23, 32, 51, 0.1);
+}
+
+.hud-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.hud strong {
+  font-size: 1.25rem;
+}
+
+.workbench {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.document-panel,
+.audit-desk {
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.document-panel {
+  min-height: 400px;
+  padding: 16px;
+}
+
+.receipt-panel {
+  background:
+    repeating-linear-gradient(0deg, transparent 0, transparent 30px, rgba(23, 32, 51, 0.05) 31px),
+    var(--paper);
+}
+
+.panel-heading {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.stamp {
+  padding: 5px 8px;
+  border: 2px solid var(--red);
+  border-radius: 4px;
+  color: var(--red);
+  font-size: 0.75rem;
+  font-weight: 900;
+  transform: rotate(-4deg);
+}
+
+.stamp.safe {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.stamp.received {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.item-list {
+  display: grid;
+  gap: 10px;
+}
+
+.item-card {
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.item-card strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.receipt-item {
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.receipt-item:hover,
+.receipt-item.selected {
+  border-color: var(--blue);
+  background: #eaf1ff;
+}
+
+.receipt-item.resolved {
+  border-color: var(--green);
+  background: #e8f8f0;
+}
+
+.audit-desk {
+  margin-top: 16px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.audit-desk p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.finding-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.finding-button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.finding-button:hover {
+  filter: brightness(0.97);
+}
+
+.feedback {
+  grid-column: 1 / -1;
+  min-height: 38px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--paper-dark);
+  color: var(--muted);
+}
+
+.feedback.good {
+  background: #e8f8f0;
+  color: #126240;
+}
+
+.feedback.bad {
+  background: #ffe8e8;
+  color: #8e2222;
+}
+
+.result-panel {
+  text-align: center;
+}
+
+.final-score {
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+@media (max-width: 900px) {
+  .game-shell {
+    padding: 14px;
+  }
+
+  .hud,
+  .workbench,
+  .audit-desk {
+    grid-template-columns: 1fr;
+  }
+
+  .finding-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .document-panel {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .title-panel {
+    padding: 24px;
+  }
+
+  .finding-buttons {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
